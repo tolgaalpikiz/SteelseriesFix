@@ -1,19 +1,19 @@
 namespace SteelseriesFix.Audio;
 
-public sealed record MuteDiscordResult(EndpointMuteResult Playback, EndpointMuteResult Capture)
+public sealed record MuteDiscordResult(EndpointMuteResult Playback, EndpointMuteResult SonarMicrophone)
 {
-    public bool Success => Playback.Success && Capture.Success;
+    public bool Success => Playback.Success && SonarMicrophone.Success;
 
     public string ToStatusMessage()
     {
         if (Success)
         {
-            return $"Discord volume set to 0 on both devices. Playback sessions updated: {Playback.UpdatedSessions}. Capture sessions updated: {Capture.UpdatedSessions}.";
+            return $"Discord volume set to 0 on both mixer devices. Headphones sessions updated: {Playback.UpdatedSessions}. Sonar microphone sessions updated: {SonarMicrophone.UpdatedSessions}.";
         }
 
         var messages = new List<string>();
-        AddEndpointMessage(messages, Playback, "playback");
-        AddEndpointMessage(messages, Capture, "capture");
+        AddEndpointMessage(messages, Playback, "headphones/playback mixer");
+        AddEndpointMessage(messages, SonarMicrophone, "Sonar microphone mixer");
 
         return messages.Count == 0
             ? "No Discord sessions were updated."

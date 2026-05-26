@@ -15,34 +15,38 @@ Print(AudioEndpointKind.Capture, includeSessions: true);
 void ApplySaved()
 {
     var settings = SettingsStore.CreateDefault().Load();
-    var playback = service.GetEndpoints(AudioEndpointKind.Playback)
+    var playbackEndpoints = service.GetEndpoints(AudioEndpointKind.Playback);
+    var playback = playbackEndpoints
         .FirstOrDefault(endpoint => string.Equals(endpoint.Id, settings.PlaybackEndpointId, StringComparison.OrdinalIgnoreCase));
-    var capture = service.GetEndpoints(AudioEndpointKind.Capture)
-        .FirstOrDefault(endpoint => string.Equals(endpoint.Id, settings.CaptureEndpointId, StringComparison.OrdinalIgnoreCase));
+    var sonarMicrophone = DeviceSelection.SelectSavedOrPreferredOrFirst(
+        settings.SonarMicrophonePlaybackEndpointId,
+        playbackEndpoints,
+        endpoint => endpoint.DisplayName.Contains("SteelSeries Sonar", StringComparison.OrdinalIgnoreCase) &&
+                    endpoint.DisplayName.Contains("Microphone", StringComparison.OrdinalIgnoreCase));
 
-    if (playback is null || capture is null)
+    if (playback is null || sonarMicrophone is null)
     {
-        Console.WriteLine("Saved playback or capture endpoint was not found.");
+        Console.WriteLine("Saved playback or Sonar microphone playback endpoint was not found.");
         return;
     }
 
     Console.WriteLine($"Playback: {playback.DisplayName}");
-    Console.WriteLine($"Capture: {capture.DisplayName}");
+    Console.WriteLine($"Sonar microphone mixer: {sonarMicrophone.DisplayName}");
     Console.WriteLine();
 
-    PrintDiscordSessions("Before", playback, capture, settings.TargetProcessNames);
+    PrintDiscordSessions("Before", playback, sonarMicrophone, settings.TargetProcessNames);
 
-    var result = new DiscordMuteWorkflow(service).Apply(playback, capture, settings.TargetProcessNames);
+    var result = new DiscordMuteWorkflow(service).Apply(playback, sonarMicrophone, settings.TargetProcessNames);
     Console.WriteLine(result.ToStatusMessage());
     Console.WriteLine();
 
-    PrintDiscordSessions("After", playback, capture, settings.TargetProcessNames);
+    PrintDiscordSessions("After", playback, sonarMicrophone, settings.TargetProcessNames);
 }
 
-void PrintDiscordSessions(string label, AudioEndpoint playback, AudioEndpoint capture, IReadOnlyCollection<string> targetProcessNames)
+void PrintDiscordSessions(string label, AudioEndpoint playback, AudioEndpoint sonarMicrophone, IReadOnlyCollection<string> targetProcessNames)
 {
     Console.WriteLine(label);
-    foreach (var endpoint in new[] { playback, capture })
+    foreach (var endpoint in new[] { playback, sonarMicrophone })
     {
         var sessions = service.GetSessions(endpoint, targetProcessNames)
             .Where(session => session.IsTargetDiscord)

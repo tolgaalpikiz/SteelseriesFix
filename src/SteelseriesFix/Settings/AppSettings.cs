@@ -6,6 +6,8 @@ public sealed class AppSettings
 {
     public string? PlaybackEndpointId { get; set; }
 
+    public string? SonarMicrophonePlaybackEndpointId { get; set; }
+
     public string? CaptureEndpointId { get; set; }
 
     public List<string> TargetProcessNames { get; set; } = DiscordProcessMatcher.DefaultProcessNames.ToList();

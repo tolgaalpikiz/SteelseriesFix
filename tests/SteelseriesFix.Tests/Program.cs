@@ -6,6 +6,7 @@ var tests = new (string Name, Action Body)[]
     ("Settings store saves and reloads selected endpoint IDs", SettingsStoreSavesAndReloadsSelections),
     ("Device selection restores by endpoint ID", DeviceSelectionRestoresByEndpointId),
     ("Device selection falls back when saved endpoint is missing", DeviceSelectionFallsBackWhenSavedEndpointIsMissing),
+    ("Device selection prefers Sonar microphone playback endpoint", DeviceSelectionPrefersSonarMicrophonePlaybackEndpoint),
     ("Discord matcher handles exe names and process names", DiscordMatcherHandlesExeNamesAndProcessNames),
     ("Mute workflow succeeds only when both endpoints update Discord", MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord),
     ("Mute workflow reports missing Discord sessions", MuteWorkflowReportsMissingDiscordSessions)
@@ -43,14 +44,14 @@ static void SettingsStoreSavesAndReloadsSelections()
     store.Save(new AppSettings
     {
         PlaybackEndpointId = "playback-id",
-        CaptureEndpointId = "capture-id",
+        SonarMicrophonePlaybackEndpointId = "sonar-mic-playback-id",
         TargetProcessNames = ["Discord"]
     });
 
     var loaded = store.Load();
 
     Assert.Equal("playback-id", loaded.PlaybackEndpointId);
-    Assert.Equal("capture-id", loaded.CaptureEndpointId);
+    Assert.Equal("sonar-mic-playback-id", loaded.SonarMicrophonePlaybackEndpointId);
     Assert.True(loaded.TargetProcessNames.Contains("Discord.exe", StringComparer.OrdinalIgnoreCase));
 }
 
@@ -80,6 +81,23 @@ static void DeviceSelectionFallsBackWhenSavedEndpointIsMissing()
     Assert.Equal("first", selected?.Id);
 }
 
+static void DeviceSelectionPrefersSonarMicrophonePlaybackEndpoint()
+{
+    var endpoints = new[]
+    {
+        new AudioEndpoint("headphones", "Headphones", AudioEndpointKind.Playback),
+        new AudioEndpoint("sonar-mic", "SteelSeries Sonar - Microphone (SteelSeries Sonar Virtual Audio Device)", AudioEndpointKind.Playback)
+    };
+
+    var selected = DeviceSelection.SelectSavedOrPreferredOrFirst(
+        "old-capture-id",
+        endpoints,
+        endpoint => endpoint.DisplayName.Contains("Sonar", StringComparison.OrdinalIgnoreCase) &&
+                    endpoint.DisplayName.Contains("Microphone", StringComparison.OrdinalIgnoreCase));
+
+    Assert.Equal("sonar-mic", selected?.Id);
+}
+
 static void DiscordMatcherHandlesExeNamesAndProcessNames()
 {
     Assert.True(DiscordProcessMatcher.IsTargetProcess("Discord", DiscordProcessMatcher.DefaultProcessNames));
@@ -91,12 +109,12 @@ static void DiscordMatcherHandlesExeNamesAndProcessNames()
 static void MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord()
 {
     var playback = new AudioEndpoint("playback", "Headphones", AudioEndpointKind.Playback);
-    var capture = new AudioEndpoint("capture", "Sonar Microphone", AudioEndpointKind.Capture);
+    var sonarMicrophone = new AudioEndpoint("sonar-microphone", "SteelSeries Sonar - Microphone", AudioEndpointKind.Playback);
     var audioService = new FakeAudioService();
     audioService.Results[playback.Id] = new EndpointMuteResult(playback.Kind, playback.Id, playback.DisplayName, true, 1, 1);
-    audioService.Results[capture.Id] = new EndpointMuteResult(capture.Kind, capture.Id, capture.DisplayName, true, 1, 1);
+    audioService.Results[sonarMicrophone.Id] = new EndpointMuteResult(sonarMicrophone.Kind, sonarMicrophone.Id, sonarMicrophone.DisplayName, true, 1, 1);
 
-    var result = new DiscordMuteWorkflow(audioService).Apply(playback, capture, DiscordProcessMatcher.DefaultProcessNames);
+    var result = new DiscordMuteWorkflow(audioService).Apply(playback, sonarMicrophone, DiscordProcessMatcher.DefaultProcessNames);
 
     Assert.True(result.Success);
 }
@@ -104,12 +122,12 @@ static void MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord()
 static void MuteWorkflowReportsMissingDiscordSessions()
 {
     var playback = new AudioEndpoint("playback", "Headphones", AudioEndpointKind.Playback);
-    var capture = new AudioEndpoint("capture", "Sonar Microphone", AudioEndpointKind.Capture);
+    var sonarMicrophone = new AudioEndpoint("sonar-microphone", "SteelSeries Sonar - Microphone", AudioEndpointKind.Playback);
     var audioService = new FakeAudioService();
     audioService.Results[playback.Id] = new EndpointMuteResult(playback.Kind, playback.Id, playback.DisplayName, true, 1, 1);
-    audioService.Results[capture.Id] = new EndpointMuteResult(capture.Kind, capture.Id, capture.DisplayName, true, 0, 0);
+    audioService.Results[sonarMicrophone.Id] = new EndpointMuteResult(sonarMicrophone.Kind, sonarMicrophone.Id, sonarMicrophone.DisplayName, true, 0, 0);
 
-    var result = new DiscordMuteWorkflow(audioService).Apply(playback, capture, DiscordProcessMatcher.DefaultProcessNames);
+    var result = new DiscordMuteWorkflow(audioService).Apply(playback, sonarMicrophone, DiscordProcessMatcher.DefaultProcessNames);
 
     Assert.False(result.Success);
     Assert.True(result.ToStatusMessage().Contains("Discord was not found", StringComparison.OrdinalIgnoreCase));

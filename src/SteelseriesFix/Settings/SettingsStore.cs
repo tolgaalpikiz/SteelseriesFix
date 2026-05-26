@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SteelseriesFix.Settings;
 
@@ -7,6 +8,7 @@ public sealed class SettingsStore(string settingsPath)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         WriteIndented = true
     };
 

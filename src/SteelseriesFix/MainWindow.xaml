@@ -48,7 +48,7 @@
                 <TextBlock Text="SteelSeries Discord Echo Fix"
                            FontSize="20"
                            FontWeight="SemiBold" />
-                <TextBlock Text="Set Discord volume to 0 on the selected playback and capture devices."
+                <TextBlock Text="Set Discord volume to 0 on your headphones and the Sonar microphone mixer."
                            Margin="0,5,0,0"
                            Foreground="#57606A"
                            TextWrapping="Wrap" />
@@ -62,8 +62,8 @@
             </StackPanel>
 
             <StackPanel Grid.Row="3">
-                <Label Content="Sonar microphone / capture device" Target="{Binding ElementName=CaptureDeviceComboBox}" />
-                <ComboBox x:Name="CaptureDeviceComboBox"
+                <Label Content="Sonar microphone mixer" Target="{Binding ElementName=SonarMicrophoneDeviceComboBox}" />
+                <ComboBox x:Name="SonarMicrophoneDeviceComboBox"
                           DisplayMemberPath="DisplayName"
                           SelectionChanged="DeviceComboBox_SelectionChanged" />
             </StackPanel>

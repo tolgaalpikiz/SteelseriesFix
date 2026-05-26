@@ -41,14 +41,15 @@ public partial class MainWindow : Window
     private async void MuteDiscordButton_Click(object sender, RoutedEventArgs e)
     {
         if (PlaybackDeviceComboBox.SelectedItem is not AudioEndpoint playbackEndpoint ||
-            CaptureDeviceComboBox.SelectedItem is not AudioEndpoint captureEndpoint)
+            SonarMicrophoneDeviceComboBox.SelectedItem is not AudioEndpoint sonarMicrophoneEndpoint)
         {
             SetStatus("Select both audio devices before muting Discord.", StatusKind.Warning);
             return;
         }
 
         _settings.PlaybackEndpointId = playbackEndpoint.Id;
-        _settings.CaptureEndpointId = captureEndpoint.Id;
+        _settings.SonarMicrophonePlaybackEndpointId = sonarMicrophoneEndpoint.Id;
+        _settings.CaptureEndpointId = null;
 
         try
         {
@@ -66,7 +67,7 @@ public partial class MainWindow : Window
         try
         {
             var targetProcessNames = _settings.TargetProcessNames.ToArray();
-            var result = await Task.Run(() => _muteWorkflow.Apply(playbackEndpoint, captureEndpoint, targetProcessNames));
+            var result = await Task.Run(() => _muteWorkflow.Apply(playbackEndpoint, sonarMicrophoneEndpoint, targetProcessNames));
             SetStatus(result.ToStatusMessage(), result.Success ? StatusKind.Success : StatusKind.Warning);
         }
         catch (Exception ex)
@@ -93,25 +94,28 @@ public partial class MainWindow : Window
             var playbackSelectionId = restoreSavedSelection
                 ? _settings.PlaybackEndpointId
                 : (PlaybackDeviceComboBox.SelectedItem as AudioEndpoint)?.Id ?? _settings.PlaybackEndpointId;
-            var captureSelectionId = restoreSavedSelection
-                ? _settings.CaptureEndpointId
-                : (CaptureDeviceComboBox.SelectedItem as AudioEndpoint)?.Id ?? _settings.CaptureEndpointId;
+            var sonarMicrophoneSelectionId = restoreSavedSelection
+                ? _settings.SonarMicrophonePlaybackEndpointId
+                : (SonarMicrophoneDeviceComboBox.SelectedItem as AudioEndpoint)?.Id ?? _settings.SonarMicrophonePlaybackEndpointId;
 
             var playbackEndpoints = _audioService.GetEndpoints(AudioEndpointKind.Playback);
-            var captureEndpoints = _audioService.GetEndpoints(AudioEndpointKind.Capture);
+            var sonarMicrophoneEndpoints = playbackEndpoints;
 
             PlaybackDeviceComboBox.ItemsSource = playbackEndpoints;
-            CaptureDeviceComboBox.ItemsSource = captureEndpoints;
+            SonarMicrophoneDeviceComboBox.ItemsSource = sonarMicrophoneEndpoints;
             PlaybackDeviceComboBox.SelectedItem = DeviceSelection.SelectSavedOrFirst(playbackSelectionId, playbackEndpoints);
-            CaptureDeviceComboBox.SelectedItem = DeviceSelection.SelectSavedOrFirst(captureSelectionId, captureEndpoints);
+            SonarMicrophoneDeviceComboBox.SelectedItem = DeviceSelection.SelectSavedOrPreferredOrFirst(
+                sonarMicrophoneSelectionId,
+                sonarMicrophoneEndpoints,
+                IsLikelySonarMicrophonePlaybackEndpoint);
 
-            if (playbackEndpoints.Count == 0 || captureEndpoints.Count == 0)
+            if (playbackEndpoints.Count == 0 || sonarMicrophoneEndpoints.Count == 0)
             {
-                SetStatus($"Loaded {playbackEndpoints.Count} playback device(s) and {captureEndpoints.Count} capture device(s). If a list is empty, confirm the device is enabled in Windows sound settings.", StatusKind.Warning);
+                SetStatus($"Loaded {playbackEndpoints.Count} playback mixer device(s). If the list is empty, confirm the device is enabled in Windows sound settings.", StatusKind.Warning);
             }
             else
             {
-                SetStatus($"Loaded {playbackEndpoints.Count} playback device(s) and {captureEndpoints.Count} capture device(s). Select the devices, then click Mute Discord.", StatusKind.Neutral);
+                SetStatus($"Loaded {playbackEndpoints.Count} playback mixer device(s). Select your headphones and SteelSeries Sonar - Microphone, then click Mute Discord.", StatusKind.Neutral);
             }
         }
         catch (Exception ex)
@@ -128,7 +132,7 @@ public partial class MainWindow : Window
     private void SetBusy(bool isBusy)
     {
         PlaybackDeviceComboBox.IsEnabled = !isBusy;
-        CaptureDeviceComboBox.IsEnabled = !isBusy;
+        SonarMicrophoneDeviceComboBox.IsEnabled = !isBusy;
         RefreshButton.IsEnabled = !isBusy;
         MuteDiscordButton.IsEnabled = !isBusy;
     }
@@ -137,9 +141,16 @@ public partial class MainWindow : Window
     {
         MuteDiscordButton.IsEnabled =
             PlaybackDeviceComboBox.SelectedItem is AudioEndpoint &&
-            CaptureDeviceComboBox.SelectedItem is AudioEndpoint &&
+            SonarMicrophoneDeviceComboBox.SelectedItem is AudioEndpoint &&
             PlaybackDeviceComboBox.IsEnabled &&
-            CaptureDeviceComboBox.IsEnabled;
+            SonarMicrophoneDeviceComboBox.IsEnabled;
+    }
+
+    private static bool IsLikelySonarMicrophonePlaybackEndpoint(AudioEndpoint endpoint)
+    {
+        return endpoint.Kind == AudioEndpointKind.Playback &&
+               endpoint.DisplayName.Contains("SteelSeries Sonar", StringComparison.OrdinalIgnoreCase) &&
+               endpoint.DisplayName.Contains("Microphone", StringComparison.OrdinalIgnoreCase);
     }
 
     private void SetStatus(string message, StatusKind kind)

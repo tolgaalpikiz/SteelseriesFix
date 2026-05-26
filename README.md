@@ -2,7 +2,7 @@
 
 Small Windows WPF tool for the SteelSeries GG Sonar + Discord screen-share echo issue.
 
-The app lists active playback and capture devices, remembers the last selected devices, and sets Discord's per-app volume to `0` on both selected endpoints.
+The app lists playback mixer devices, remembers the last selected headphones and Sonar microphone mixer endpoints, and sets Discord's per-app volume to `0` on both selected endpoints.
 
 ## Build
 
