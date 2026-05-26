@@ -1,0 +1,93 @@
+<Window x:Class="SteelseriesFix.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="SteelSeries Discord Echo Fix"
+        Height="325"
+        Width="520"
+        MinHeight="325"
+        MinWidth="520"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#1F2328" />
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="#343941" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="0,0,0,6" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="0,0,0,14" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="MinWidth" Value="112" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="14,0" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="#F6F7F9">
+        <Grid Margin="22">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="18" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0">
+                <TextBlock Text="SteelSeries Discord Echo Fix"
+                           FontSize="20"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Set Discord volume to 0 on the selected playback and capture devices."
+                           Margin="0,5,0,0"
+                           Foreground="#57606A"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="2">
+                <Label Content="Playback device" Target="{Binding ElementName=PlaybackDeviceComboBox}" />
+                <ComboBox x:Name="PlaybackDeviceComboBox"
+                          DisplayMemberPath="DisplayName"
+                          SelectionChanged="DeviceComboBox_SelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Grid.Row="3">
+                <Label Content="Sonar microphone / capture device" Target="{Binding ElementName=CaptureDeviceComboBox}" />
+                <ComboBox x:Name="CaptureDeviceComboBox"
+                          DisplayMemberPath="DisplayName"
+                          SelectionChanged="DeviceComboBox_SelectionChanged" />
+            </StackPanel>
+
+            <DockPanel Grid.Row="4" LastChildFill="False" Margin="-8,2,0,18">
+                <Button x:Name="RefreshButton"
+                        Content="Refresh"
+                        Click="RefreshButton_Click" />
+                <Button x:Name="MuteDiscordButton"
+                        Content="Mute Discord"
+                        FontWeight="SemiBold"
+                        Click="MuteDiscordButton_Click" />
+            </DockPanel>
+
+            <Border Grid.Row="5"
+                    Padding="12"
+                    Background="#FFFFFF"
+                    BorderBrush="#D0D7DE"
+                    BorderThickness="1">
+                <TextBlock x:Name="StatusTextBlock"
+                           Text="Loading audio devices..."
+                           Foreground="#57606A"
+                           TextWrapping="Wrap" />
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

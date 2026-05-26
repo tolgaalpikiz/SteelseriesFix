@@ -1,0 +1,157 @@
+using SteelseriesFix.Audio;
+using SteelseriesFix.Settings;
+
+var tests = new (string Name, Action Body)[]
+{
+    ("Settings store saves and reloads selected endpoint IDs", SettingsStoreSavesAndReloadsSelections),
+    ("Device selection restores by endpoint ID", DeviceSelectionRestoresByEndpointId),
+    ("Device selection falls back when saved endpoint is missing", DeviceSelectionFallsBackWhenSavedEndpointIsMissing),
+    ("Discord matcher handles exe names and process names", DiscordMatcherHandlesExeNamesAndProcessNames),
+    ("Mute workflow succeeds only when both endpoints update Discord", MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord),
+    ("Mute workflow reports missing Discord sessions", MuteWorkflowReportsMissingDiscordSessions)
+};
+
+var failed = 0;
+foreach (var test in tests)
+{
+    try
+    {
+        test.Body();
+        Console.WriteLine($"PASS {test.Name}");
+    }
+    catch (Exception ex)
+    {
+        failed++;
+        Console.WriteLine($"FAIL {test.Name}");
+        Console.WriteLine(ex.Message);
+    }
+}
+
+if (failed > 0)
+{
+    Console.WriteLine($"{failed} test(s) failed.");
+    Environment.Exit(1);
+}
+
+Console.WriteLine($"{tests.Length} tests passed.");
+
+static void SettingsStoreSavesAndReloadsSelections()
+{
+    var settingsPath = Path.Combine(Path.GetTempPath(), "SteelseriesFix.Tests", Guid.NewGuid().ToString("N"), "settings.json");
+    var store = new SettingsStore(settingsPath);
+
+    store.Save(new AppSettings
+    {
+        PlaybackEndpointId = "playback-id",
+        CaptureEndpointId = "capture-id",
+        TargetProcessNames = ["Discord"]
+    });
+
+    var loaded = store.Load();
+
+    Assert.Equal("playback-id", loaded.PlaybackEndpointId);
+    Assert.Equal("capture-id", loaded.CaptureEndpointId);
+    Assert.True(loaded.TargetProcessNames.Contains("Discord.exe", StringComparer.OrdinalIgnoreCase));
+}
+
+static void DeviceSelectionRestoresByEndpointId()
+{
+    var endpoints = new[]
+    {
+        new AudioEndpoint("first", "First", AudioEndpointKind.Playback),
+        new AudioEndpoint("saved", "Saved", AudioEndpointKind.Playback)
+    };
+
+    var selected = DeviceSelection.SelectSavedOrFirst("saved", endpoints);
+
+    Assert.Equal("saved", selected?.Id);
+}
+
+static void DeviceSelectionFallsBackWhenSavedEndpointIsMissing()
+{
+    var endpoints = new[]
+    {
+        new AudioEndpoint("first", "First", AudioEndpointKind.Capture),
+        new AudioEndpoint("second", "Second", AudioEndpointKind.Capture)
+    };
+
+    var selected = DeviceSelection.SelectSavedOrFirst("missing", endpoints);
+
+    Assert.Equal("first", selected?.Id);
+}
+
+static void DiscordMatcherHandlesExeNamesAndProcessNames()
+{
+    Assert.True(DiscordProcessMatcher.IsTargetProcess("Discord", DiscordProcessMatcher.DefaultProcessNames));
+    Assert.True(DiscordProcessMatcher.IsTargetProcess("DiscordCanary.exe", DiscordProcessMatcher.DefaultProcessNames));
+    Assert.True(DiscordProcessMatcher.IsTargetProcess(@"C:\Users\user\AppData\Local\DiscordPTB\DiscordPTB.exe", DiscordProcessMatcher.DefaultProcessNames));
+    Assert.False(DiscordProcessMatcher.IsTargetProcess("not-discord.exe", DiscordProcessMatcher.DefaultProcessNames));
+}
+
+static void MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord()
+{
+    var playback = new AudioEndpoint("playback", "Headphones", AudioEndpointKind.Playback);
+    var capture = new AudioEndpoint("capture", "Sonar Microphone", AudioEndpointKind.Capture);
+    var audioService = new FakeAudioService();
+    audioService.Results[playback.Id] = new EndpointMuteResult(playback.Kind, playback.Id, playback.DisplayName, true, 1, 1);
+    audioService.Results[capture.Id] = new EndpointMuteResult(capture.Kind, capture.Id, capture.DisplayName, true, 1, 1);
+
+    var result = new DiscordMuteWorkflow(audioService).Apply(playback, capture, DiscordProcessMatcher.DefaultProcessNames);
+
+    Assert.True(result.Success);
+}
+
+static void MuteWorkflowReportsMissingDiscordSessions()
+{
+    var playback = new AudioEndpoint("playback", "Headphones", AudioEndpointKind.Playback);
+    var capture = new AudioEndpoint("capture", "Sonar Microphone", AudioEndpointKind.Capture);
+    var audioService = new FakeAudioService();
+    audioService.Results[playback.Id] = new EndpointMuteResult(playback.Kind, playback.Id, playback.DisplayName, true, 1, 1);
+    audioService.Results[capture.Id] = new EndpointMuteResult(capture.Kind, capture.Id, capture.DisplayName, true, 0, 0);
+
+    var result = new DiscordMuteWorkflow(audioService).Apply(playback, capture, DiscordProcessMatcher.DefaultProcessNames);
+
+    Assert.False(result.Success);
+    Assert.True(result.ToStatusMessage().Contains("Discord was not found", StringComparison.OrdinalIgnoreCase));
+}
+
+sealed class FakeAudioService : IAudioService
+{
+    public Dictionary<string, EndpointMuteResult> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public IReadOnlyList<AudioEndpoint> GetEndpoints(AudioEndpointKind kind) => [];
+
+    public EndpointMuteResult SetDiscordVolumeToZero(AudioEndpoint endpoint, IReadOnlyCollection<string> targetProcessNames)
+    {
+        return Results.TryGetValue(endpoint.Id, out var result)
+            ? result
+            : new EndpointMuteResult(endpoint.Kind, endpoint.Id, endpoint.DisplayName, true, 0, 0);
+    }
+}
+
+static class Assert
+{
+    public static void True(bool condition)
+    {
+        if (!condition)
+        {
+            throw new InvalidOperationException("Expected condition to be true.");
+        }
+    }
+
+    public static void False(bool condition)
+    {
+        if (condition)
+        {
+            throw new InvalidOperationException("Expected condition to be false.");
+        }
+    }
+
+    public static void Equal<T>(T expected, T actual)
+    {
+        if (!EqualityComparer<T>.Default.Equals(expected, actual))
+        {
+            throw new InvalidOperationException($"Expected '{expected}', got '{actual}'.");
+        }
+    }
+}
