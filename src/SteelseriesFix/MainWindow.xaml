@@ -5,35 +5,46 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="SteelSeries Discord Echo Fix"
-        Height="325"
+        Height="470"
         Width="520"
-        MinHeight="325"
+        MinHeight="430"
         MinWidth="520"
         ResizeMode="CanMinimize"
         WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded">
     <Window.Resources>
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#1F2328" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         </Style>
         <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#343941" />
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Padding" Value="0,0,0,6" />
         </Style>
         <Style TargetType="ComboBox">
             <Setter Property="Height" Value="34" />
             <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
         </Style>
         <Style TargetType="Button">
             <Setter Property="MinWidth" Value="112" />
             <Setter Property="Height" Value="34" />
             <Setter Property="Padding" Value="14,0" />
             <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         </Style>
     </Window.Resources>
 
-    <Grid Background="#F6F7F9">
+    <Grid x:Name="RootGrid" Background="{DynamicResource AppBackgroundBrush}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
         <Grid Margin="22">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -41,18 +52,31 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Grid.Row="0">
-                <TextBlock Text="SteelSeries Discord Echo Fix"
-                           FontSize="20"
-                           FontWeight="SemiBold" />
-                <TextBlock Text="Set Discord volume to 0 on your headphones and the Sonar microphone mixer."
-                           Margin="0,5,0,0"
-                           Foreground="#57606A"
-                           TextWrapping="Wrap" />
-            </StackPanel>
+            <DockPanel Grid.Row="0">
+                <Button x:Name="ThemeButton"
+                        DockPanel.Dock="Right"
+                        Content="System"
+                        Width="76"
+                        MinWidth="76"
+                        Height="28"
+                        Margin="12,0,0,0"
+                        Padding="8,0"
+                        ToolTip="Cycle theme"
+                        Click="ThemeButton_Click" />
+                <StackPanel>
+                    <TextBlock Text="SteelSeries Discord Echo Fix"
+                               FontSize="20"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="Keep Discord volume at 0 on your headphones and the Sonar microphone mixer."
+                               Margin="0,5,0,0"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </DockPanel>
 
             <StackPanel Grid.Row="2">
                 <Label Content="Playback device" Target="{Binding ElementName=PlaybackDeviceComboBox}" />
@@ -68,7 +92,19 @@
                           SelectionChanged="DeviceComboBox_SelectionChanged" />
             </StackPanel>
 
-            <DockPanel Grid.Row="4" LastChildFill="False" Margin="-8,2,0,18">
+            <StackPanel Grid.Row="4" Margin="0,0,0,16">
+                <CheckBox x:Name="AutoMonitorCheckBox"
+                          Content="Auto-monitor Discord volume"
+                          Margin="0,0,0,8"
+                          Checked="SettingsCheckBox_Changed"
+                          Unchecked="SettingsCheckBox_Changed" />
+                <CheckBox x:Name="RunAtStartupCheckBox"
+                          Content="Run in tray at Windows startup"
+                          Checked="SettingsCheckBox_Changed"
+                          Unchecked="SettingsCheckBox_Changed" />
+            </StackPanel>
+
+            <DockPanel Grid.Row="5" LastChildFill="False" Margin="-8,2,0,16">
                 <Button x:Name="RefreshButton"
                         Content="Refresh"
                         Click="RefreshButton_Click" />
@@ -78,16 +114,18 @@
                         Click="MuteDiscordButton_Click" />
             </DockPanel>
 
-            <Border Grid.Row="5"
+            <Border Grid.Row="6"
                     Padding="12"
-                    Background="#FFFFFF"
-                    BorderBrush="#D0D7DE"
+                    MinHeight="58"
+                    Background="{DynamicResource PanelBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="1">
                 <TextBlock x:Name="StatusTextBlock"
                            Text="Loading audio devices..."
-                           Foreground="#57606A"
+                           Foreground="{DynamicResource MutedTextBrush}"
                            TextWrapping="Wrap" />
             </Border>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>

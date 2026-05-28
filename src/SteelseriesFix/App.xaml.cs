@@ -1,13 +1,21 @@
-﻿using System.Configuration;
-using System.Data;
-using System.Windows;
-
 namespace SteelseriesFix;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
-}
+    private AppController? _controller;
 
+    protected override void OnStartup(System.Windows.StartupEventArgs e)
+    {
+        base.OnStartup(e);
+
+        ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+        _controller = new AppController();
+        _controller.Start();
+    }
+
+    protected override void OnExit(System.Windows.ExitEventArgs e)
+    {
+        _controller?.Dispose();
+        base.OnExit(e);
+    }
+}

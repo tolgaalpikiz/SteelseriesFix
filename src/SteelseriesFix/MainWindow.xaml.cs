@@ -12,24 +12,34 @@ public partial class MainWindow : Window
     private readonly IAudioService _audioService;
     private readonly DiscordMuteWorkflow _muteWorkflow;
     private readonly SettingsStore _settingsStore;
+    private readonly SystemThemeService _systemThemeService;
     private AppSettings _settings = AppSettings.CreateDefault();
 
-    public MainWindow() : this(new CoreAudioService(), SettingsStore.CreateDefault())
+    public event EventHandler? SettingsSaved;
+
+    public MainWindow() : this(new CoreAudioService(), SettingsStore.CreateDefault(), new SystemThemeService())
     {
     }
 
-    internal MainWindow(IAudioService audioService, SettingsStore settingsStore)
+    internal MainWindow(
+        IAudioService audioService,
+        SettingsStore settingsStore,
+        SystemThemeService systemThemeService)
     {
         _audioService = audioService;
         _muteWorkflow = new DiscordMuteWorkflow(audioService);
         _settingsStore = settingsStore;
+        _systemThemeService = systemThemeService;
 
+        _settings = _settingsStore.Load();
+        ApplyThemeResources();
         InitializeComponent();
     }
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        _settings = _settingsStore.Load();
+        ApplySettingsToControls();
+        UpdateThemeButton();
         RefreshDevices(restoreSavedSelection: true);
     }
 
@@ -39,6 +49,47 @@ public partial class MainWindow : Window
     }
 
     private async void MuteDiscordButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ApplyMuteFromUiAsync(showBusy: true);
+    }
+
+    private void SettingsCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        UpdateSettingsFromControls();
+        if (SaveSettings())
+        {
+            SettingsSaved?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ThemeButton_Click(object sender, RoutedEventArgs e)
+    {
+        _settings.ThemeMode = _settings.ThemeMode switch
+        {
+            ThemeMode.System => ThemeMode.Dark,
+            ThemeMode.Dark => ThemeMode.Light,
+            _ => ThemeMode.System
+        };
+
+        ApplyThemeResources();
+        UpdateThemeButton();
+        if (SaveSettings())
+        {
+            SettingsSaved?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void DeviceComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        UpdateApplyState();
+    }
+
+    private async Task ApplyMuteFromUiAsync(bool showBusy)
     {
         if (PlaybackDeviceComboBox.SelectedItem is not AudioEndpoint playbackEndpoint ||
             SonarMicrophoneDeviceComboBox.SelectedItem is not AudioEndpoint sonarMicrophoneEndpoint)
@@ -50,19 +101,21 @@ public partial class MainWindow : Window
         _settings.PlaybackEndpointId = playbackEndpoint.Id;
         _settings.SonarMicrophonePlaybackEndpointId = sonarMicrophoneEndpoint.Id;
         _settings.CaptureEndpointId = null;
+        UpdateSettingsFromControls();
 
-        try
+        if (!SaveSettings())
         {
-            _settingsStore.Save(_settings);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            SetStatus($"Could not save selected devices: {ex.Message}", StatusKind.Error);
             return;
         }
 
-        SetBusy(true);
-        SetStatus("Muting Discord on the selected devices...", StatusKind.Neutral);
+        SettingsSaved?.Invoke(this, EventArgs.Empty);
+
+        if (showBusy)
+        {
+            SetBusy(true);
+        }
+
+        SetStatus("Muting Discord on the selected mixer devices...", StatusKind.Neutral);
 
         try
         {
@@ -76,13 +129,11 @@ public partial class MainWindow : Window
         }
         finally
         {
-            SetBusy(false);
+            if (showBusy)
+            {
+                SetBusy(false);
+            }
         }
-    }
-
-    private void DeviceComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        UpdateApplyState();
     }
 
     private void RefreshDevices(bool restoreSavedSelection)
@@ -129,12 +180,46 @@ public partial class MainWindow : Window
         }
     }
 
+    private void ApplySettingsToControls()
+    {
+        AutoMonitorCheckBox.IsChecked = _settings.AutoMonitorEnabled;
+        RunAtStartupCheckBox.IsChecked = _settings.RunAtStartup;
+    }
+
+    private void UpdateThemeButton()
+    {
+        ThemeButton.Content = _settings.ThemeMode.ToString();
+        ThemeButton.ToolTip = $"Theme: {_settings.ThemeMode}. Click to cycle.";
+    }
+
+    private void UpdateSettingsFromControls()
+    {
+        _settings.AutoMonitorEnabled = AutoMonitorCheckBox.IsChecked == true;
+        _settings.RunAtStartup = RunAtStartupCheckBox.IsChecked == true;
+    }
+
+    private bool SaveSettings()
+    {
+        try
+        {
+            _settingsStore.Save(_settings);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SetStatus($"Could not save settings: {ex.Message}", StatusKind.Error);
+            return false;
+        }
+    }
+
     private void SetBusy(bool isBusy)
     {
         PlaybackDeviceComboBox.IsEnabled = !isBusy;
         SonarMicrophoneDeviceComboBox.IsEnabled = !isBusy;
         RefreshButton.IsEnabled = !isBusy;
         MuteDiscordButton.IsEnabled = !isBusy;
+        AutoMonitorCheckBox.IsEnabled = !isBusy;
+        RunAtStartupCheckBox.IsEnabled = !isBusy;
     }
 
     private void UpdateApplyState()
@@ -158,11 +243,44 @@ public partial class MainWindow : Window
         StatusTextBlock.Text = message;
         StatusTextBlock.Foreground = kind switch
         {
-            StatusKind.Success => new SolidColorBrush(Color.FromRgb(26, 127, 55)),
-            StatusKind.Warning => new SolidColorBrush(Color.FromRgb(154, 103, 0)),
-            StatusKind.Error => new SolidColorBrush(Color.FromRgb(207, 34, 46)),
-            _ => new SolidColorBrush(Color.FromRgb(87, 96, 106))
+            StatusKind.Success => new SolidColorBrush(System.Windows.Media.Color.FromRgb(26, 127, 55)),
+            StatusKind.Warning => new SolidColorBrush(System.Windows.Media.Color.FromRgb(154, 103, 0)),
+            StatusKind.Error => new SolidColorBrush(System.Windows.Media.Color.FromRgb(207, 34, 46)),
+            _ => new SolidColorBrush(System.Windows.Media.Color.FromRgb(87, 96, 106))
         };
+    }
+
+    private void ApplyThemeResources()
+    {
+        var useDarkTheme = _settings.ThemeMode switch
+        {
+            ThemeMode.Dark => true,
+            ThemeMode.Light => false,
+            _ => _systemThemeService.IsSystemDarkMode()
+        };
+
+        var resources = System.Windows.Application.Current.Resources;
+        resources["AppBackgroundBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(20, 23, 27)
+            : System.Windows.Media.Color.FromRgb(246, 247, 249));
+        resources["PanelBackgroundBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(31, 35, 40)
+            : System.Windows.Media.Color.FromRgb(255, 255, 255));
+        resources["ControlBackgroundBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(39, 44, 51)
+            : System.Windows.Media.Color.FromRgb(255, 255, 255));
+        resources["BorderBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(65, 72, 82)
+            : System.Windows.Media.Color.FromRgb(208, 215, 222));
+        resources["PrimaryTextBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(239, 246, 252)
+            : System.Windows.Media.Color.FromRgb(31, 35, 40));
+        resources["SecondaryTextBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(207, 216, 226)
+            : System.Windows.Media.Color.FromRgb(52, 57, 65));
+        resources["MutedTextBrush"] = new SolidColorBrush(useDarkTheme
+            ? System.Windows.Media.Color.FromRgb(173, 186, 199)
+            : System.Windows.Media.Color.FromRgb(87, 96, 106));
     }
 
     private enum StatusKind

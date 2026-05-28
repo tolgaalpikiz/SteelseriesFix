@@ -9,7 +9,8 @@ var tests = new (string Name, Action Body)[]
     ("Device selection prefers Sonar microphone playback endpoint", DeviceSelectionPrefersSonarMicrophonePlaybackEndpoint),
     ("Discord matcher handles exe names and process names", DiscordMatcherHandlesExeNamesAndProcessNames),
     ("Mute workflow succeeds only when both endpoints update Discord", MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord),
-    ("Mute workflow reports missing Discord sessions", MuteWorkflowReportsMissingDiscordSessions)
+    ("Mute workflow reports missing Discord sessions", MuteWorkflowReportsMissingDiscordSessions),
+    ("Volume monitor only applies when Discord volume is high", VolumeMonitorAppliesOnlyWhenDiscordVolumeIsHigh)
 };
 
 var failed = 0;
@@ -133,14 +134,60 @@ static void MuteWorkflowReportsMissingDiscordSessions()
     Assert.True(result.ToStatusMessage().Contains("Discord was not found", StringComparison.OrdinalIgnoreCase));
 }
 
+static void VolumeMonitorAppliesOnlyWhenDiscordVolumeIsHigh()
+{
+    var playback = new AudioEndpoint("playback", "Headphones", AudioEndpointKind.Playback);
+    var sonarMicrophone = new AudioEndpoint("sonar-microphone", "SteelSeries Sonar - Microphone", AudioEndpointKind.Playback);
+    var audioService = new FakeAudioService();
+    audioService.Endpoints.Add(playback);
+    audioService.Endpoints.Add(sonarMicrophone);
+    audioService.Sessions[playback.Id] =
+    [
+        new AudioSessionInfo(playback.Id, playback.DisplayName, playback.Kind, 10, "Discord", null, 0.0f, true)
+    ];
+    audioService.Sessions[sonarMicrophone.Id] =
+    [
+        new AudioSessionInfo(sonarMicrophone.Id, sonarMicrophone.DisplayName, sonarMicrophone.Kind, 11, "Discord", null, 0.8f, true)
+    ];
+    audioService.Results[sonarMicrophone.Id] = new EndpointMuteResult(sonarMicrophone.Kind, sonarMicrophone.Id, sonarMicrophone.DisplayName, true, 1, 1);
+
+    var result = new DiscordVolumeMonitor(audioService).CheckAndFix(new AppSettings
+    {
+        PlaybackEndpointId = playback.Id,
+        SonarMicrophonePlaybackEndpointId = sonarMicrophone.Id,
+        TargetProcessNames = ["Discord.exe"],
+        MonitorVolumeThreshold = 0.001f
+    });
+
+    Assert.True(result.ChangedVolume);
+    Assert.Equal(1, result.HighSessions);
+    Assert.Equal(1, result.UpdatedSessions);
+    Assert.Equal(1, audioService.ApplyCalls);
+}
+
 sealed class FakeAudioService : IAudioService
 {
+    public List<AudioEndpoint> Endpoints { get; } = [];
+
+    public Dictionary<string, IReadOnlyList<AudioSessionInfo>> Sessions { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, EndpointMuteResult> Results { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public IReadOnlyList<AudioEndpoint> GetEndpoints(AudioEndpointKind kind) => [];
+    public int ApplyCalls { get; private set; }
+
+    public IReadOnlyList<AudioEndpoint> GetEndpoints(AudioEndpointKind kind)
+    {
+        return Endpoints.Where(endpoint => endpoint.Kind == kind).ToArray();
+    }
+
+    public IReadOnlyList<AudioSessionInfo> GetSessions(AudioEndpoint endpoint, IReadOnlyCollection<string> targetProcessNames)
+    {
+        return Sessions.TryGetValue(endpoint.Id, out var sessions) ? sessions : [];
+    }
 
     public EndpointMuteResult SetDiscordVolumeToZero(AudioEndpoint endpoint, IReadOnlyCollection<string> targetProcessNames)
     {
+        ApplyCalls++;
         return Results.TryGetValue(endpoint.Id, out var result)
             ? result
             : new EndpointMuteResult(endpoint.Kind, endpoint.Id, endpoint.DisplayName, true, 0, 0);
