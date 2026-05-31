@@ -1,3 +1,5 @@
+using System.IO;
+using System.Security;
 using System.Windows.Threading;
 using SteelseriesFix.Audio;
 using SteelseriesFix.Settings;
@@ -87,7 +89,7 @@ public sealed class AppController : IDisposable
     {
         if (_window is null)
         {
-            _window = new MainWindow(_audioService, _settingsStore, _systemThemeService);
+            _window = new MainWindow(_audioService, _settingsStore, _startupRegistrationService, _systemThemeService);
             _window.SettingsSaved += Window_SettingsSaved;
             _window.Closed += (_, _) =>
             {
@@ -162,7 +164,7 @@ public sealed class AppController : IDisposable
         {
             _startupRegistrationService.SetEnabled(_settings.RunAtStartup);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or SecurityException or UnauthorizedAccessException)
         {
             ShowNotification("Startup registration failed", ex.Message);
         }

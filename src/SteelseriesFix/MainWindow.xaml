@@ -25,8 +25,15 @@
             <Setter Property="Height" Value="34" />
             <Setter Property="Margin" Value="0,0,0,14" />
             <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
-            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+            <Setter Property="Foreground" Value="Black" />
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Foreground" Value="Black" />
+                    </Style>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />

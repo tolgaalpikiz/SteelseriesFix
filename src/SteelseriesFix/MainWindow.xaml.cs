@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -12,23 +13,27 @@ public partial class MainWindow : Window
     private readonly IAudioService _audioService;
     private readonly DiscordMuteWorkflow _muteWorkflow;
     private readonly SettingsStore _settingsStore;
+    private readonly StartupRegistrationService _startupRegistrationService;
     private readonly SystemThemeService _systemThemeService;
     private AppSettings _settings = AppSettings.CreateDefault();
+    private bool _isApplyingSettingsToControls;
 
     public event EventHandler? SettingsSaved;
 
-    public MainWindow() : this(new CoreAudioService(), SettingsStore.CreateDefault(), new SystemThemeService())
+    public MainWindow() : this(new CoreAudioService(), SettingsStore.CreateDefault(), new StartupRegistrationService(), new SystemThemeService())
     {
     }
 
     internal MainWindow(
         IAudioService audioService,
         SettingsStore settingsStore,
+        StartupRegistrationService startupRegistrationService,
         SystemThemeService systemThemeService)
     {
         _audioService = audioService;
         _muteWorkflow = new DiscordMuteWorkflow(audioService);
         _settingsStore = settingsStore;
+        _startupRegistrationService = startupRegistrationService;
         _systemThemeService = systemThemeService;
 
         _settings = _settingsStore.Load();
@@ -55,7 +60,17 @@ public partial class MainWindow : Window
 
     private void SettingsCheckBox_Changed(object sender, RoutedEventArgs e)
     {
-        if (!IsLoaded)
+        if (!IsLoaded || _isApplyingSettingsToControls)
+        {
+            return;
+        }
+
+        var previousRunAtStartup = _settings.RunAtStartup;
+        var requestedRunAtStartup = RunAtStartupCheckBox.IsChecked == true;
+
+        if (ReferenceEquals(sender, RunAtStartupCheckBox) &&
+            requestedRunAtStartup != previousRunAtStartup &&
+            !TryApplyStartupRegistration(requestedRunAtStartup, previousRunAtStartup))
         {
             return;
         }
@@ -63,6 +78,15 @@ public partial class MainWindow : Window
         UpdateSettingsFromControls();
         if (SaveSettings())
         {
+            if (ReferenceEquals(sender, RunAtStartupCheckBox))
+            {
+                SetStatus(
+                    _settings.RunAtStartup
+                        ? "Windows startup is enabled. The app will start in the tray after sign-in."
+                        : "Windows startup is disabled.",
+                    StatusKind.Success);
+            }
+
             SettingsSaved?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -182,8 +206,16 @@ public partial class MainWindow : Window
 
     private void ApplySettingsToControls()
     {
-        AutoMonitorCheckBox.IsChecked = _settings.AutoMonitorEnabled;
-        RunAtStartupCheckBox.IsChecked = _settings.RunAtStartup;
+        _isApplyingSettingsToControls = true;
+        try
+        {
+            AutoMonitorCheckBox.IsChecked = _settings.AutoMonitorEnabled;
+            RunAtStartupCheckBox.IsChecked = _settings.RunAtStartup;
+        }
+        finally
+        {
+            _isApplyingSettingsToControls = false;
+        }
     }
 
     private void UpdateThemeButton()
@@ -208,6 +240,30 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             SetStatus($"Could not save settings: {ex.Message}", StatusKind.Error);
+            return false;
+        }
+    }
+
+    private bool TryApplyStartupRegistration(bool enabled, bool previousValue)
+    {
+        try
+        {
+            _startupRegistrationService.SetEnabled(enabled);
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or SecurityException or UnauthorizedAccessException)
+        {
+            SetStatus($"Could not update Windows startup: {ex.Message}", StatusKind.Error);
+            _isApplyingSettingsToControls = true;
+            try
+            {
+                RunAtStartupCheckBox.IsChecked = previousValue;
+            }
+            finally
+            {
+                _isApplyingSettingsToControls = false;
+            }
+
             return false;
         }
     }

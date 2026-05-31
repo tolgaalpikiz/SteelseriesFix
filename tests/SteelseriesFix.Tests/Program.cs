@@ -7,6 +7,8 @@ var tests = new (string Name, Action Body)[]
     ("Device selection restores by endpoint ID", DeviceSelectionRestoresByEndpointId),
     ("Device selection falls back when saved endpoint is missing", DeviceSelectionFallsBackWhenSavedEndpointIsMissing),
     ("Device selection prefers Sonar microphone playback endpoint", DeviceSelectionPrefersSonarMicrophonePlaybackEndpoint),
+    ("Startup registration quotes apphost executable paths", StartupRegistrationQuotesApphostExecutablePaths),
+    ("Startup registration includes assembly path for dotnet launches", StartupRegistrationIncludesAssemblyPathForDotnetLaunches),
     ("Discord matcher handles exe names and process names", DiscordMatcherHandlesExeNamesAndProcessNames),
     ("Mute workflow succeeds only when both endpoints update Discord", MuteWorkflowSucceedsWhenBothEndpointsUpdateDiscord),
     ("Mute workflow reports missing Discord sessions", MuteWorkflowReportsMissingDiscordSessions),
@@ -97,6 +99,22 @@ static void DeviceSelectionPrefersSonarMicrophonePlaybackEndpoint()
                     endpoint.DisplayName.Contains("Microphone", StringComparison.OrdinalIgnoreCase));
 
     Assert.Equal("sonar-mic", selected?.Id);
+}
+
+static void StartupRegistrationQuotesApphostExecutablePaths()
+{
+    var command = StartupRegistrationService.BuildCommand(@"C:\Apps\SteelseriesFix\SteelseriesFix.exe", null);
+
+    Assert.Equal(@"""C:\Apps\SteelseriesFix\SteelseriesFix.exe""", command);
+}
+
+static void StartupRegistrationIncludesAssemblyPathForDotnetLaunches()
+{
+    var command = StartupRegistrationService.BuildCommand(
+        @"C:\Program Files\dotnet\dotnet.exe",
+        @"C:\Apps\SteelseriesFix\SteelseriesFix.dll");
+
+    Assert.Equal(@"""C:\Program Files\dotnet\dotnet.exe"" ""C:\Apps\SteelseriesFix\SteelseriesFix.dll""", command);
 }
 
 static void DiscordMatcherHandlesExeNamesAndProcessNames()

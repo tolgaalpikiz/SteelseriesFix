@@ -1,3 +1,5 @@
+using System.IO;
+using System.Reflection;
 using Microsoft.Win32;
 
 namespace SteelseriesFix.Settings;
@@ -18,6 +20,10 @@ public sealed class StartupRegistrationService
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true) ??
                         Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
+        if (key is null)
+        {
+            throw new InvalidOperationException("Could not open the current user's Windows startup registry key.");
+        }
 
         if (enabled)
         {
@@ -31,12 +37,26 @@ public sealed class StartupRegistrationService
 
     private static string BuildCommand()
     {
-        var executablePath = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(executablePath))
+        return BuildCommand(Environment.ProcessPath, Assembly.GetEntryAssembly()?.Location);
+    }
+
+    public static string BuildCommand(string? processPath, string? entryAssemblyPath)
+    {
+        if (string.IsNullOrWhiteSpace(processPath))
         {
             throw new InvalidOperationException("Could not determine the application executable path.");
         }
 
-        return $"\"{executablePath}\"";
+        if (string.Equals(Path.GetFileNameWithoutExtension(processPath), "dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(entryAssemblyPath))
+            {
+                throw new InvalidOperationException("Could not determine the application assembly path.");
+            }
+
+            return $"\"{processPath}\" \"{entryAssemblyPath}\"";
+        }
+
+        return $"\"{processPath}\"";
     }
 }
